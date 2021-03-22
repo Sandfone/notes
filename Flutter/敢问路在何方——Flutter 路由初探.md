@@ -236,7 +236,7 @@ Navigator 2.0 的概念和之前介绍过的 Flutter 视图树比较相似——
 
 上面介绍到 Navigator 2.0 的思想在于把一部分的页面栈的操作权限下放给用户，在 App 中，如果我们需要对页面栈进行排序、插入、多页面插入、删除、多页面删除，或者对浏览器更新与加载方式等进行操作时，需要用到上面介绍的一些对象，这些对象都在 `Router` 中持有引用，所以我们就可以使用 `Router` 对象获取到这些对象的引用，而 `Router` 对象可以通过其静态方法 `of()` 获取。
 
-大致的介绍就这么多，用法可以看这个 demo[^ 注]。下面简单串一下系统的运行流程。
+大致的介绍就这么多，用法可以看这个 [demo](https://dartpad.dev/bf810e6de3156553a15e9db473934167)[^ 注]。下面简单串一下系统的运行流程。
 
 ### 二、原理分析
 
@@ -292,15 +292,28 @@ Widget build(BuildContext context) {
 
 `Navigator` 都很熟悉了，但是这里的用法又和上面介绍的两种用法都不一样。
 
-这里通过 `Navigator` 的 `pages` 属性，将页面列表 `List<Page>` 传递进去，当视图配置有变更时，触发视图更新，此方法被调用，然后通过比较 `pages` 是否已产生变化，来决定是否更新页面，最终会调用 `Navigator` 的 `_updatePages` 方法。这个方法的内容有点多，我们挑一些关键的代码来说明。
+这里通过 `Navigator` 的 `pages` 属性，将页面列表 `List<Page>` 传递进去，当视图配置有变更时，触发视图更新，此方法被调用，然后通过比较 `pages` 是否已产生变化，来决定是否更新页面，最终会调用 `Navigator` 的 `_updatePages` 方法。这个方法的内容有点多，我们就不做具体说明了，只大概说一下它的工作流程。
+
+这个方法比较新的 `pages` 列表和旧的 `_history` List（元素为 `_RouteEntry` 类型），然后产生新的 `_history` List。这个方法大致和 `RenderObjectElement.updateChildren()` 方法流程相同，大体的方法是逆向同步整个 List：
+
+1. 首先从 List 头开始同步节点，并记录非 `Page` 的路由，直到匹配完所有的节点。
+2. 从 List 尾部开始遍历，但不同步节点，直到不再有匹配的节点，然后最后同步所有的节点，之所以这么做，是因为我们想以从头到尾的顺序来同步这些节点。此时，我们将旧 List 和新 List 缩小到节点不再匹配的位置。
+3. 遍历旧列表被收缩的部分，获得一个存储 `Key` 值的 List。
+4. 正向遍历新 List 被收缩的部分：
+   - 对无 `Key` 元素创建 `_RouteEntry` 对象并将其记录为 `transitionDelegate`（转场页面）；
+   - 同步有 `Key` 的元素列表（如果存在的话）。
+5. 再次遍历旧 List 被收缩的部分，并记录 `_RouteEntry` 和非 `Page` 路由（需要从 `transitionDelegate` 中被移除）。
+6. 从列表尾部再次遍历，同步节点状态，并记录非 `Page` 页面。
+7. 根据 `transitionDelegate` 配置转场效果。
+8. 将非 `Page` 路由重新填充回新的 `_history`。
+
+更新过 `_history` 之后，剩下的流程就和 Navigator 1.0 中介绍的相同了——通过 `Overlay` 对象更新页面栈，完成页面显示和切换的需求。
+
+Navigator 2.0 的思路就是将页面的排列和更替通过一个 `Page` 列表—— `pages` 完全交给开发者，开发者只需要维护好 `pages`，转化为真正可显示的界面的过程就交给 Flutter engine 即可。
 
 
 
-
-
-
-
-[^ 注]: 本文中关于 Navigator 2.0 的学习和参考主要都来自[这篇文章](https://juejin.cn/post/6932115520405635079)，demo 也是根据文章中的 demo 参考而得。
+[^ 注]: 本文中关于 Navigator 2.0 的部分理解学习了[这篇文章](https://juejin.cn/post/6932115520405635079)，demo 也是根据文章中的 demo 参考而得。
 
 
 
