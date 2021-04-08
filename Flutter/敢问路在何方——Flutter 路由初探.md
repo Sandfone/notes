@@ -294,12 +294,14 @@ Widget build(BuildContext context) {
 
 这里通过 `Navigator` 的 `pages` 属性，将页面列表 `List<Page>` 传递进去，当视图配置有变更时，触发视图更新，此方法被调用，然后通过比较 `pages` 是否已产生变化，来决定是否更新页面，最终会调用 `Navigator` 的 `_updatePages` 方法。这个方法的内容有点多，我们就不做具体说明了，只大概说一下它的工作流程。
 
-这个方法比较新的 `pages` 列表和旧的 `_history` List（元素为 `_RouteEntry` 类型），然后产生新的 `_history` List。这个方法大致和 `RenderObjectElement.updateChildren()` 方法流程相同，大体的方法是逆向同步整个 List：
+这个方法比较新的 `pages` 列表和旧的 `_history` 列表（元素为 `_RouteEntry` 类型），然后产生新的 `_history` 列表。这个方法大致和 `RenderObjectElement.updateChildren()` 方法流程相同。
+
+需要注意的是，这个方法全程在围绕着两个列表进行——旧的路由列表 `_history` 以及新的页面列表 `widget.pages`，我们把前者称为「oldEntries」，把后者称为 「newPages」，通过两个列表共同比对，剔除 oldEntries 中非 `Page` 型的节点，而用 newPages 中的节点更新对应的 oldEntries 的节点。
 
 1. 首先从 List 头开始同步节点，并记录非 `Page` 的路由，直到匹配完所有的节点。
 2. 从 List 尾部开始遍历，但不同步节点，直到不再有匹配的节点，然后最后同步所有的节点，之所以这么做，是因为我们想以从头到尾的顺序来同步这些节点。此时，我们将旧 List 和新 List 缩小到节点不再匹配的位置。
 3. 遍历旧列表被收缩的部分，获得一个存储 `Key` 值的 List。
-4. 正向遍历新 List 被收缩的部分：
+4. 正向遍历新 List 被收缩的部分（即去除已遍历两端的中间部分）：
    - 对无 `Key` 元素创建 `_RouteEntry` 对象并将其记录为 `transitionDelegate`（转场页面）；
    - 同步有 `Key` 的元素列表（如果存在的话）。
 5. 再次遍历旧 List 被收缩的部分，并记录 `_RouteEntry` 和非 `Page` 路由（需要从 `transitionDelegate` 中被移除）。
@@ -310,6 +312,8 @@ Widget build(BuildContext context) {
 更新过 `_history` 之后，剩下的流程就和 Navigator 1.0 中介绍的相同了——通过 `Overlay` 对象更新页面栈，完成页面显示和切换的需求。
 
 Navigator 2.0 的思路就是将页面的排列和更替通过一个 `Page` 列表—— `pages` 完全交给开发者，开发者只需要维护好 `pages`，转化为真正可显示的界面的过程就交给 Flutter engine 即可。
+
+
 
 
 
